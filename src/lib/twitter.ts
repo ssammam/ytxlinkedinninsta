@@ -77,3 +77,27 @@ export async function getMyUserId(client: TwitterApi) {
   const me = await client.v2.me();
   return me.data.id;
 }
+
+export async function sendDm(client: TwitterApi, participantId: string, text: string) {
+  try {
+    // Requires OAuth 1.0a or OAuth 2.0 user context with dm.write
+    await client.v1.sendDm({
+      recipient_id: participantId,
+      text: text
+    });
+    return true;
+  } catch (error) {
+    console.error('Error sending DM on Twitter:', error);
+    return false;
+  }
+}
+
+export async function getRecentDms(client: TwitterApi) {
+  try {
+    const events = await client.v1.listDmEvents();
+    return events.events || [];
+  } catch (error) {
+    console.error('Error fetching Twitter DMs:', error);
+    return [];
+  }
+}
