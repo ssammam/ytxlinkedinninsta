@@ -43,7 +43,7 @@ export async function GET(request: Request) {
 
       const text = (mention.text || "").toLowerCase();
       
-      if (text.includes("price") || text.includes("cost") || text.includes("pp") || text.includes("rate") || text.includes("how much")) {
+      if (text.includes("test bot") || text.includes("price") || text.includes("cost") || text.includes("pp") || text.includes("rate") || text.includes("how much")) {
         // Send DM
         const rates = await getRates();
         const dmText = `Namaste! You asked about a product on our page. Please share the specific link or SKU in this DM so we can fetch the exact live price for you! We are RH Jewellers Kengeri.`;
