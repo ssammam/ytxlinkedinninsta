@@ -2,6 +2,18 @@ import { TwitterApi } from 'twitter-api-v2';
 import * as fs from 'fs';
 import * as path from 'path';
 
+export function getTwitterClient() {
+  if (!process.env.TWITTER_APP_KEY || !process.env.TWITTER_APP_SECRET || !process.env.TWITTER_ACCESS_TOKEN || !process.env.TWITTER_ACCESS_SECRET) {
+    return null;
+  }
+  return new TwitterApi({
+    appKey: process.env.TWITTER_APP_KEY,
+    appSecret: process.env.TWITTER_APP_SECRET,
+    accessToken: process.env.TWITTER_ACCESS_TOKEN,
+    accessSecret: process.env.TWITTER_ACCESS_SECRET,
+  });
+}
+
 export async function postVideoToTwitter(
   appKey: string,
   appSecret: string,
@@ -17,21 +29,16 @@ export async function postVideoToTwitter(
     accessSecret,
   });
 
-  // Write buffer to a temp file because TwitterApi prefers a file path or stream for chunked uploads
   const tempPath = path.join(process.cwd(), `temp-${Date.now()}.mp4`);
   
   try {
     fs.writeFileSync(tempPath, videoBuffer);
-    
-    // Upload media
     const mediaId = await client.v1.uploadMedia(tempPath, { type: 'longmp4' });
     
-    // Post tweet with media
     await client.v2.tweet({
       text: caption,
       media: { media_ids: [mediaId] }
     });
-    
     return true;
   } catch (error) {
     console.error('Error posting to Twitter:', error);
@@ -41,4 +48,32 @@ export async function postVideoToTwitter(
       fs.unlinkSync(tempPath);
     }
   }
+}
+
+export async function getRecentMentions(client: TwitterApi, userId: string) {
+  try {
+    const mentions = await client.v2.userMentionTimeline(userId, {
+      max_results: 20,
+      'tweet.fields': ['created_at', 'author_id', 'text']
+    });
+    return mentions.data.data || [];
+  } catch (error) {
+    console.error('Error fetching Twitter mentions:', error);
+    return [];
+  }
+}
+
+export async function replyToTweet(client: TwitterApi, tweetId: string, replyText: string) {
+  try {
+    const res = await client.v2.reply(replyText, tweetId);
+    return res;
+  } catch (error) {
+    console.error('Error replying to tweet:', error);
+    return null;
+  }
+}
+
+export async function getMyUserId(client: TwitterApi) {
+  const me = await client.v2.me();
+  return me.data.id;
 }

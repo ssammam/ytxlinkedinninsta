@@ -1,10 +1,9 @@
 export async function postVideoToLinkedIn(
   accessToken: string,
-  personUrn: string, // e.g. "urn:li:person:XXXX" or "urn:li:organization:XXXX"
-  videoBuffer: Buffer,
+  personUrn: string,
+  videoBuffer: any,
   caption: string
 ) {
-  // 1. Initialize Upload
   const initResponse = await fetch('https://api.linkedin.com/v2/assets?action=registerUpload', {
     method: 'POST',
     headers: {
@@ -24,31 +23,23 @@ export async function postVideoToLinkedIn(
     })
   });
   
-  if (!initResponse.ok) {
-    console.error('Failed to init LinkedIn upload', await initResponse.text());
-    return false;
-  }
+  if (!initResponse.ok) return false;
   
   const initData = await initResponse.json();
   const uploadUrl = initData.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
   const assetUrn = initData.value.asset;
   
-  // 2. Upload Video Buffer
   const uploadResponse = await fetch(uploadUrl, {
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${accessToken}`,
       'Content-Type': 'application/octet-stream'
     },
-    body: videoBuffer as any
+    body: videoBuffer
   });
   
-  if (!uploadResponse.ok) {
-    console.error('Failed to upload video to LinkedIn', await uploadResponse.text());
-    return false;
-  }
+  if (!uploadResponse.ok) return false;
   
-  // 3. Create Post
   const postResponse = await fetch('https://api.linkedin.com/v2/ugcPosts', {
     method: 'POST',
     headers: {
@@ -61,14 +52,9 @@ export async function postVideoToLinkedIn(
       lifecycleState: 'PUBLISHED',
       specificContent: {
         'com.linkedin.ugc.ShareContent': {
-          shareCommentary: {
-            text: caption
-          },
+          shareCommentary: { text: caption },
           shareMediaCategory: 'VIDEO',
-          media: [{
-            status: 'READY',
-            media: assetUrn
-          }]
+          media: [{ status: 'READY', media: assetUrn }]
         }
       },
       visibility: {
@@ -77,10 +63,56 @@ export async function postVideoToLinkedIn(
     })
   });
   
-  if (!postResponse.ok) {
-    console.error('Failed to create LinkedIn post', await postResponse.text());
+  return postResponse.ok;
+}
+
+export async function getRecentLinkedInPosts(accessToken: string, authorUrn: string) {
+  try {
+    const res = await fetch(`https://api.linkedin.com/v2/ugcPosts?q=authors&authors=List(${encodeURIComponent(authorUrn)})&count=10`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Restli-Protocol-Version': '2.0.0'
+      }
+    });
+    const data = await res.json();
+    return data.elements || [];
+  } catch (err) {
+    return [];
+  }
+}
+
+export async function getLinkedInComments(accessToken: string, postUrn: string) {
+  try {
+    const res = await fetch(`https://api.linkedin.com/v2/socialActions/${encodeURIComponent(postUrn)}/comments`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Restli-Protocol-Version': '2.0.0'
+      }
+    });
+    const data = await res.json();
+    return data.elements || [];
+  } catch (err) {
+    return [];
+  }
+}
+
+export async function replyToLinkedInComment(accessToken: string, postUrn: string, commentUrn: string, authorUrn: string, text: string) {
+  try {
+    const res = await fetch(`https://api.linkedin.com/v2/socialActions/${encodeURIComponent(postUrn)}/comments`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'X-Restli-Protocol-Version': '2.0.0'
+      },
+      body: JSON.stringify({
+        actor: authorUrn,
+        message: { text: text },
+        parentComment: commentUrn
+      })
+    });
+    return res.ok;
+  } catch (err) {
     return false;
   }
-  
-  return true;
 }
